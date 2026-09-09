@@ -48,12 +48,16 @@ pixel-font headings.
 5. Same page, reveal the **service_role** key (server-only, bypasses RLS —
    never put this in a mobile/web app) → this goes in the GitHub Actions
    secret for [checker/](checker/) (see step 4).
-6. **SQL Editor** → paste the contents of
-   [supabase/migrations/0001_init.sql](supabase/migrations/0001_init.sql) →
-   Run. This creates every table (`vps`, `services`, `checks`, `incidents`,
-   etc.) with RLS enabled (locked down; both the checker and the apps use
-   keys that bypass or are meant to be scoped to it — see the file's
-   comments; v1 is single-user so this is intentionally minimal for now).
+6. **SQL Editor** → run every file in
+   [supabase/migrations/](supabase/migrations/) **in filename order**
+   (`0001_init.sql`, then `0002_...`, etc. — paste each one's contents and
+   Run separately). `0001` creates every table (`vps`, `services`,
+   `checks`, `incidents`, etc.) with RLS enabled; `0002` adds the policies
+   that actually let the anon key read/write (v1 has no real auth yet —
+   see feat/auth-basic in the roadmap — so these are intentionally wide
+   open for now). Whenever a new numbered file shows up after a `git pull`,
+   run just that one file — Supabase has no CLI configured on this
+   project yet, so nothing applies automatically.
 
 ### 2. Create the GitHub repo (for the Actions cron)
 

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import type { Incident, Service, Vps } from "../lib/types";
 
@@ -9,24 +9,26 @@ export default function VpsDetail() {
   const [services, setServices] = useState<Service[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!id) return;
-    (async () => {
-      const [{ data: vpsRow }, { data: serviceRows }, { data: incidentRows }] = await Promise.all([
-        supabase.from("vps").select("*").eq("id", id).single(),
-        supabase.from("services").select("*").eq("vps_id", id).order("name"),
-        supabase
-          .from("incidents")
-          .select("*")
-          .eq("vps_id", id)
-          .order("started_at", { ascending: false })
-          .limit(20),
-      ]);
-      setVps(vpsRow as Vps);
-      setServices((serviceRows as Service[]) ?? []);
-      setIncidents((incidentRows as Incident[]) ?? []);
-    })();
+    const [{ data: vpsRow }, { data: serviceRows }, { data: incidentRows }] = await Promise.all([
+      supabase.from("vps").select("*").eq("id", id).single(),
+      supabase.from("services").select("*").eq("vps_id", id).order("name"),
+      supabase
+        .from("incidents")
+        .select("*")
+        .eq("vps_id", id)
+        .order("started_at", { ascending: false })
+        .limit(20),
+    ]);
+    setVps(vpsRow as Vps);
+    setServices((serviceRows as Service[]) ?? []);
+    setIncidents((incidentRows as Incident[]) ?? []);
   }, [id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   if (!vps) return <div style={{ padding: 24 }}>LOADING...</div>;
 
@@ -37,14 +39,26 @@ export default function VpsDetail() {
         <div style={{ fontSize: 12, marginTop: 4 }}>{vps.primary_domain ?? vps.name}</div>
       </div>
 
-      <h2 style={{ fontSize: 14, fontWeight: 900 }}>SERVICES</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ fontSize: 14, fontWeight: 900 }}>SERVICES</h2>
+        <Link
+          to={`/vps/${id}/service/new`}
+          style={{ border: "2px solid #000", padding: "6px 10px", fontWeight: 900, fontSize: 12 }}
+        >
+          + ADD SERVICE
+        </Link>
+      </div>
       {services.length === 0 && <p>NO SERVICES YET.</p>}
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
         {services.map((s) => (
-          <div key={s.id} style={{ border: "2px solid #000", padding: 12 }}>
+          <Link
+            key={s.id}
+            to={`/vps/${id}/service/${s.id}`}
+            style={{ display: "block", border: "2px solid #000", padding: 12 }}
+          >
             <div style={{ fontWeight: 700 }}>{s.name}</div>
             <div style={{ fontSize: 12 }}>{s.domain}{s.health_check_path}</div>
-          </div>
+          </Link>
         ))}
       </div>
 

@@ -1,0 +1,19 @@
+{
+  "name": "checker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "External checker for jamuin-monitor. Runs on GitHub Actions (never on any monitored VPS) — curls each registered VPS/service over the public internet, writes results to Supabase, and pushes an Expo notification on any up↔down transition.",
+  "scripts": {
+    "check": "tsx src/check.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

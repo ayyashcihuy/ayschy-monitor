@@ -1,0 +1,15 @@
+{
+  "name": "jamuin-monitor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Internal multi-VPS health/uptime/traffic monitor for Jamuin. See docs/vps-monitor-app-plan.md.",
+  "workspaces": [
+    "apps/*",
+    "checker"
+  ],
+  "scripts": {
+    "web": "npm run dev --workspace apps/web",
+    "mobile": "npm run start --workspace apps/mobile",
+    "check": "npm run check --workspace checker"
+  }
+}

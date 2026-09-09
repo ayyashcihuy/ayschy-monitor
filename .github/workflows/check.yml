@@ -1,0 +1,30 @@
+name: External VPS/service check
+
+# Runs on GitHub's infra — deliberately NOT on any monitored VPS, so a dead
+# VPS can never take down the thing that's supposed to report it as dead.
+# See docs/vps-monitor-app-plan.md.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci --workspace checker
+
+      - run: npm run check --workspace checker
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          EXPO_ACCESS_TOKEN: ${{ secrets.EXPO_ACCESS_TOKEN }}

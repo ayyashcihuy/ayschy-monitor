@@ -1,0 +1,5 @@
+- [Dalang.io VPS proxy architecture](dalang-io-vps-proxy-architecture.md) — no real public IP; domains must be registered as custom domains in dalang.io before nginx sees traffic
+- [Jamuin infra overview](jamuin-infra-overview.md) — app-to-port-to-domain map for jamuin-web/jamuin-workspace/finance on the dalang.io VPS
+- [Jamuin swap + healthcheck](jamuin-swap-and-healthcheck.md) — 2GB swap + cron healthcheck installed after 2026-09-09 outage; dev-side perf risks found (no container resource limits, finance SSR per-request auth, gzip/rate-limit gaps)
+- [Dalang.io storage OSD incident](dalang-io-storage-osd-incident.md) — CONFIRMED root cause: consumer SSDs degrading since Jul 2026 + host x99-04 memory overcommit caused the 09 Sep OOM-kill; no ETA/SLA; the swap fix does NOT protect against this failure mode; avoid heavy builds on vps-5bd9f069 until confirmed fixed
+- [VPS monitor app plan](vps-monitor-app-plan.md) — full architecture for a mobile+web app (external-checker design, Supabase+GitHub Actions, pixelated B&W UI) to monitor multiple VPS/apps; not yet built, user will develop from local PC instead of this VPS

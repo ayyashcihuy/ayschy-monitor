@@ -1,0 +1,59 @@
+/* Pixelated, full black/white contrast theme — same style as the mobile app
+   (see docs/vps-monitor-app-plan.md, "Dua Repo Terpisah, Desain Sama").
+   No gradients, no shadows, no border-radius. Viewport capped at 1280px so
+   the app reads like a small CRT screen centered on a larger monitor. */
+
+@font-face {
+  font-family: "Press Start 2P";
+  src: local("Press Start 2P");
+  font-display: swap;
+}
+
+:root {
+  --fg: #000000;
+  --bg: #ffffff;
+  --border: 2px solid #000000;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: #d9d9d9; /* the "desk" behind the CRT */
+}
+
+body {
+  font-family: "Courier New", ui-monospace, monospace;
+  color: var(--fg);
+  display: flex;
+  justify-content: center;
+}
+
+#root {
+  width: 100%;
+  max-width: 1280px;
+  min-height: 100vh;
+  background: var(--bg);
+  border-left: var(--border);
+  border-right: var(--border);
+}
+
+.pixel-heading {
+  font-family: "Press Start 2P", "Courier New", monospace;
+  letter-spacing: 1px;
+}
+
+a {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+button,
+input {
+  font-family: inherit;
+  border-radius: 0;
+}

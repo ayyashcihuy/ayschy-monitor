@@ -3,10 +3,16 @@ name: External VPS/service check
 # Runs on GitHub's infra — deliberately NOT on any monitored VPS, so a dead
 # VPS can never take down the thing that's supposed to report it as dead.
 # See docs/vps-monitor-app-plan.md.
+#
+# Manual-only for now: the scheduled cron was moved to a Supabase Edge
+# Function (supabase/functions/checker) + Database Cron Job after this
+# account hit a GitHub Actions billing lock (2026-09-10). Kept here as a
+# manual fallback / for local-parity testing — re-enable the `schedule:`
+# trigger below if you'd rather run the cron here once billing is sorted.
 
 on:
-  schedule:
-    - cron: "*/5 * * * *"
+  # schedule:
+  #   - cron: "*/5 * * * *"
   workflow_dispatch: {}
 
 jobs:

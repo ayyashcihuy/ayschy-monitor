@@ -25,6 +25,16 @@ export interface Service {
   created_at: string;
 }
 
+export type MetricType = "uptime" | "response_time" | "resource_usage" | "traffic";
+
+export interface ServiceMetricConfig {
+  id: string;
+  service_id: string;
+  metric_type: MetricType;
+  enabled: boolean;
+  interval_minutes: number;
+}
+
 export type CheckSource = "external" | "internal_agent";
 export type CheckStatus = "up" | "down";
 

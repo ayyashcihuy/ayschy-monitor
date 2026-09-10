@@ -27,7 +27,7 @@ export default function VpsListScreen() {
           const isDown = status === "down";
           return (
             <Link href={{ pathname: "/vps/[id]", params: { id: item.id } }} asChild>
-              <Pressable style={[styles.row, isDown && styles.rowDown]}>
+              <Pressable style={StyleSheet.flatten([styles.row, isDown && styles.rowDown])}>
                 <Text style={[styles.statusDot, isDown && styles.statusDotDown]}>
                   {status === null ? "?" : isDown ? "DOWN" : "UP"}
                 </Text>

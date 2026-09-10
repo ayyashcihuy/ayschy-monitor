@@ -26,8 +26,16 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="index" options={{ title: "JAMUIN MONITOR" }} />
-        <Stack.Screen name="vps/[id]" options={{ title: "VPS DETAIL" }} />
+        <Stack.Screen name="vps/[id]/index" options={{ title: "VPS DETAIL" }} />
         <Stack.Screen name="vps/new" options={{ title: "ADD VPS", presentation: "modal" }} />
+        <Stack.Screen
+          name="vps/[id]/service/new"
+          options={{ title: "ADD SERVICE", presentation: "modal" }}
+        />
+        <Stack.Screen
+          name="vps/[id]/service/[serviceId]"
+          options={{ title: "EDIT SERVICE" }}
+        />
       </Stack>
     </>
   );

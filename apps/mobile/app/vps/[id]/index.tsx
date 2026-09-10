@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
-import { useLocalSearchParams } from "expo-router";
-import { FlatList, StyleSheet, Text, View } from "react-native";
-import { supabase } from "../../lib/supabase";
-import { theme } from "../../lib/theme";
-import type { Incident, Service, Vps } from "../../lib/types";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { supabase } from "../../../lib/supabase";
+import { theme } from "../../../lib/theme";
+import type { Incident, Service, Vps } from "../../../lib/types";
 
 export default function VpsDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -11,24 +11,30 @@ export default function VpsDetailScreen() {
   const [services, setServices] = useState<Service[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!id) return;
-    (async () => {
-      const [{ data: vpsRow }, { data: serviceRows }, { data: incidentRows }] = await Promise.all([
-        supabase.from("vps").select("*").eq("id", id).single(),
-        supabase.from("services").select("*").eq("vps_id", id).order("name"),
-        supabase
-          .from("incidents")
-          .select("*")
-          .eq("vps_id", id)
-          .order("started_at", { ascending: false })
-          .limit(20),
-      ]);
-      setVps(vpsRow as Vps);
-      setServices((serviceRows as Service[]) ?? []);
-      setIncidents((incidentRows as Incident[]) ?? []);
-    })();
+    const [{ data: vpsRow }, { data: serviceRows }, { data: incidentRows }] = await Promise.all([
+      supabase.from("vps").select("*").eq("id", id).single(),
+      supabase.from("services").select("*").eq("vps_id", id).order("name"),
+      supabase
+        .from("incidents")
+        .select("*")
+        .eq("vps_id", id)
+        .order("started_at", { ascending: false })
+        .limit(20),
+    ]);
+    setVps(vpsRow as Vps);
+    setServices((serviceRows as Service[]) ?? []);
+    setIncidents((incidentRows as Incident[]) ?? []);
   }, [id]);
+
+  // Reload whenever this screen regains focus — e.g. coming back from
+  // add/edit service, so the list reflects the change without a manual pull.
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
 
   if (!vps) return <View style={styles.screen} />;
 
@@ -39,16 +45,29 @@ export default function VpsDetailScreen() {
         <Text style={styles.sub}>{vps.primary_domain ?? vps.name}</Text>
       </View>
 
-      <Text style={styles.sectionTitle}>SERVICES</Text>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>SERVICES</Text>
+        <Link href={{ pathname: "/vps/[id]/service/new", params: { id: id! } }} asChild>
+          <Pressable style={styles.addButton}>
+            <Text style={styles.addButtonText}>+ ADD SERVICE</Text>
+          </Pressable>
+        </Link>
+      </View>
       <FlatList
         data={services}
         keyExtractor={(s) => s.id}
+        scrollEnabled={false}
         ListEmptyComponent={<Text style={styles.empty}>NO SERVICES YET.</Text>}
         renderItem={({ item }) => (
-          <View style={styles.row}>
-            <Text style={styles.rowTitle}>{item.name}</Text>
-            <Text style={styles.rowSub}>{item.domain}{item.health_check_path}</Text>
-          </View>
+          <Link
+            href={{ pathname: "/vps/[id]/service/[serviceId]", params: { id: id!, serviceId: item.id } }}
+            asChild
+          >
+            <Pressable style={styles.row}>
+              <Text style={styles.rowTitle}>{item.name}</Text>
+              <Text style={styles.rowSub}>{item.domain}{item.health_check_path}</Text>
+            </Pressable>
+          </Link>
         )}
       />
 
@@ -56,6 +75,7 @@ export default function VpsDetailScreen() {
       <FlatList
         data={incidents}
         keyExtractor={(i) => i.id}
+        scrollEnabled={false}
         ListEmptyComponent={<Text style={styles.empty}>NO INCIDENTS RECORDED.</Text>}
         renderItem={({ item }) => (
           <View style={styles.row}>
@@ -78,7 +98,10 @@ const styles = StyleSheet.create({
   header: { borderWidth: theme.borderWidth, borderColor: theme.colors.border, padding: theme.spacing(1.5), marginBottom: theme.spacing(2) },
   title: { fontFamily: "monospace", fontWeight: "900", fontSize: 18, color: theme.colors.fg },
   sub: { fontFamily: "monospace", fontSize: 12, color: theme.colors.fg, marginTop: 2 },
+  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: theme.spacing(1) },
   sectionTitle: { fontFamily: "monospace", fontWeight: "900", fontSize: 13, marginBottom: theme.spacing(1), color: theme.colors.fg },
+  addButton: { borderWidth: theme.borderWidth, borderColor: theme.colors.border, paddingVertical: 4, paddingHorizontal: 8 },
+  addButtonText: { fontFamily: "monospace", fontWeight: "900", fontSize: 11, color: theme.colors.fg },
   empty: { fontFamily: "monospace", fontSize: 12, color: theme.colors.fg, marginBottom: theme.spacing(2) },
   row: { borderWidth: theme.borderWidth, borderColor: theme.colors.border, padding: theme.spacing(1), marginBottom: theme.spacing(1) },
   rowTitle: { fontFamily: "monospace", fontWeight: "700", fontSize: 13, color: theme.colors.fg },

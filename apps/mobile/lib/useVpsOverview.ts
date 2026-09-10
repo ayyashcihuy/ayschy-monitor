@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabase";
-import type { Check, Vps, VpsWithStatus } from "./types";
+import type { Check, Vps, VpsUptimeSummary, VpsWithStatus } from "./types";
 
 /**
  * Overview list: every active VPS + its latest external check. Reads
@@ -28,15 +28,22 @@ export function useVpsOverview() {
 
     const withStatus: VpsWithStatus[] = await Promise.all(
       (vpsRows as Vps[]).map(async (v) => {
-        const { data: checkRows } = await supabase
-          .from("checks")
-          .select("*")
-          .eq("vps_id", v.id)
-          .is("service_id", null)
-          .eq("source", "external")
-          .order("checked_at", { ascending: false })
-          .limit(1);
-        return { ...v, latestCheck: (checkRows?.[0] as Check | undefined) ?? null };
+        const [{ data: checkRows }, { data: uptimeSummary }] = await Promise.all([
+          supabase
+            .from("checks")
+            .select("*")
+            .eq("vps_id", v.id)
+            .is("service_id", null)
+            .eq("source", "external")
+            .order("checked_at", { ascending: false })
+            .limit(1),
+          supabase.rpc("vps_uptime_summary", { p_vps_id: v.id, p_days: 1 }),
+        ]);
+        return {
+          ...v,
+          latestCheck: (checkRows?.[0] as Check | undefined) ?? null,
+          uptime24h: (uptimeSummary as VpsUptimeSummary | null)?.uptime_24h ?? null,
+        };
       }),
     );
 

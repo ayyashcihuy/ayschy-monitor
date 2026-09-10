@@ -61,4 +61,17 @@ export interface Incident {
 /** VPS row plus its latest external check, for the overview list. */
 export interface VpsWithStatus extends Vps {
   latestCheck: Check | null;
+  uptime24h: number | null;
+}
+
+/** One day's aggregate for the heatmap grid — see vps_uptime_summary() in supabase/migrations. */
+export interface DailyUptimeEntry {
+  day: string; // YYYY-MM-DD
+  status: CheckStatus;
+}
+
+export interface VpsUptimeSummary {
+  uptime_24h: number | null;
+  uptime_7d: number | null;
+  daily: DailyUptimeEntry[];
 }

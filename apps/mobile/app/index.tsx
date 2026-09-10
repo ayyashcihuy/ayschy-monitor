@@ -2,6 +2,8 @@ import { Link } from "expo-router";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useVpsOverview } from "../lib/useVpsOverview";
 import { theme } from "../lib/theme";
+import { getHealthState } from "../lib/health";
+import { StatusBadge } from "../components/StatusBadge";
 
 export default function VpsListScreen() {
   const { data, loading, error, refresh } = useVpsOverview();
@@ -22,25 +24,20 @@ export default function VpsListScreen() {
             </Text>
           ) : null
         }
-        renderItem={({ item }) => {
-          const status = item.latestCheck?.status ?? null;
-          const isDown = status === "down";
-          return (
-            <Link href={{ pathname: "/vps/[id]", params: { id: item.id } }} asChild>
-              <Pressable style={StyleSheet.flatten([styles.row, isDown && styles.rowDown])}>
-                <Text style={[styles.statusDot, isDown && styles.statusDotDown]}>
-                  {status === null ? "?" : isDown ? "DOWN" : "UP"}
+        renderItem={({ item }) => (
+          <Link href={{ pathname: "/vps/[id]", params: { id: item.id } }} asChild>
+            <Pressable style={styles.row}>
+              <View style={styles.rowLabel}>
+                <Text style={styles.rowTitle}>{item.label}</Text>
+                <Text style={styles.rowSub}>{item.primary_domain ?? item.name}</Text>
+                <Text style={styles.uptimeBadge}>
+                  {item.uptime24h == null ? "24H: —" : `24H: ${item.uptime24h}%`}
                 </Text>
-                <View style={styles.rowLabel}>
-                  <Text style={[styles.rowTitle, isDown && styles.textOnDark]}>{item.label}</Text>
-                  <Text style={[styles.rowSub, isDown && styles.textOnDark]}>
-                    {item.primary_domain ?? item.name}
-                  </Text>
-                </View>
-              </Pressable>
-            </Link>
-          );
-        }}
+              </View>
+              <StatusBadge state={getHealthState(item.latestCheck)} />
+            </Pressable>
+          </Link>
+        )}
       />
 
       <Link href="/vps/new" asChild>
@@ -71,19 +68,10 @@ const styles = StyleSheet.create({
     padding: theme.spacing(1.5),
     backgroundColor: theme.colors.bg,
   },
-  rowDown: { backgroundColor: theme.colors.downBg },
-  statusDot: {
-    fontFamily: "monospace",
-    fontWeight: "900",
-    fontSize: 12,
-    color: theme.colors.fg,
-    minWidth: 44,
-  },
-  statusDotDown: { color: "#FFFFFF" },
   rowLabel: { flex: 1 },
   rowTitle: { fontFamily: "monospace", fontWeight: "700", fontSize: 15, color: theme.colors.fg },
   rowSub: { fontFamily: "monospace", fontSize: 12, color: theme.colors.fg, marginTop: 2 },
-  textOnDark: { color: "#FFFFFF" },
+  uptimeBadge: { fontFamily: "monospace", fontSize: 11, color: theme.colors.fg, marginTop: 2 },
   addButton: {
     margin: theme.spacing(2),
     borderWidth: theme.borderWidth,

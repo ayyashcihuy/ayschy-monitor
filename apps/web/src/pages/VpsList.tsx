@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
 import { useVpsOverview } from "../lib/useVpsOverview";
+import { getHealthState } from "../lib/health";
+import { StatusBadge } from "../components/StatusBadge";
 
 export default function VpsList() {
   const { data, loading, error } = useVpsOverview();
@@ -18,31 +20,30 @@ export default function VpsList() {
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 16 }}>
-        {data.map((v) => {
-          const status = v.latestCheck?.status ?? null;
-          const isDown = status === "down";
-          return (
-            <Link
-              key={v.id}
-              to={`/vps/${v.id}`}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 16,
-                border: "2px solid #000",
-                padding: 16,
-                background: isDown ? "#000" : "#fff",
-                color: isDown ? "#fff" : "#000",
-              }}
-            >
-              <strong style={{ minWidth: 56 }}>{status === null ? "?" : isDown ? "DOWN" : "UP"}</strong>
-              <span>
-                <div style={{ fontWeight: 700 }}>{v.label}</div>
-                <div style={{ fontSize: 12 }}>{v.primary_domain ?? v.name}</div>
-              </span>
-            </Link>
-          );
-        })}
+        {data.map((v) => (
+          <Link
+            key={v.id}
+            to={`/vps/${v.id}`}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              border: "2px solid #000",
+              padding: 16,
+              background: "#fff",
+              color: "#000",
+            }}
+          >
+            <span style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700 }}>{v.label}</div>
+              <div style={{ fontSize: 12 }}>{v.primary_domain ?? v.name}</div>
+              <div style={{ fontSize: 11, marginTop: 2 }}>
+                {v.uptime24h == null ? "24H: —" : `24H: ${v.uptime24h}%`}
+              </div>
+            </span>
+            <StatusBadge state={getHealthState(v.latestCheck)} />
+          </Link>
+        ))}
       </div>
 
       <Link

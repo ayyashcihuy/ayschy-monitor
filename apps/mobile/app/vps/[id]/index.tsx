@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Link, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { supabase } from "../../../lib/supabase";
 import { theme } from "../../../lib/theme";
 import { useVpsUptime } from "../../../lib/useVpsUptime";
 import { UptimeHeatmap } from "../../../components/UptimeHeatmap";
-import type { Incident, Service, Vps } from "../../../lib/types";
+import { StatusBadge } from "../../../components/StatusBadge";
+import { getHealthState } from "../../../lib/health";
+import type { Check, Incident, Service, Vps } from "../../../lib/types";
 
 function formatPct(pct: number | null | undefined) {
   return pct == null ? "—" : `${pct}%`;
@@ -16,23 +18,50 @@ export default function VpsDetailScreen() {
   const [vps, setVps] = useState<Vps | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [vpsCheck, setVpsCheck] = useState<Check | null>(null);
+  const [serviceChecks, setServiceChecks] = useState<Record<string, Check | null>>({});
   const { summary: uptime } = useVpsUptime(id);
 
   const load = useCallback(async () => {
     if (!id) return;
-    const [{ data: vpsRow }, { data: serviceRows }, { data: incidentRows }] = await Promise.all([
-      supabase.from("vps").select("*").eq("id", id).single(),
-      supabase.from("services").select("*").eq("vps_id", id).order("name"),
-      supabase
-        .from("incidents")
-        .select("*")
-        .eq("vps_id", id)
-        .order("started_at", { ascending: false })
-        .limit(20),
-    ]);
+    const [{ data: vpsRow }, { data: serviceRows }, { data: incidentRows }, { data: vpsCheckRows }] =
+      await Promise.all([
+        supabase.from("vps").select("*").eq("id", id).single(),
+        supabase.from("services").select("*").eq("vps_id", id).order("name"),
+        supabase
+          .from("incidents")
+          .select("*")
+          .eq("vps_id", id)
+          .order("started_at", { ascending: false })
+          .limit(20),
+        supabase
+          .from("checks")
+          .select("*")
+          .eq("vps_id", id)
+          .is("service_id", null)
+          .eq("source", "external")
+          .order("checked_at", { ascending: false })
+          .limit(1),
+      ]);
     setVps(vpsRow as Vps);
-    setServices((serviceRows as Service[]) ?? []);
+    const loadedServices = (serviceRows as Service[]) ?? [];
+    setServices(loadedServices);
     setIncidents((incidentRows as Incident[]) ?? []);
+    setVpsCheck((vpsCheckRows?.[0] as Check | undefined) ?? null);
+
+    const checksByService = await Promise.all(
+      loadedServices.map(async (s) => {
+        const { data } = await supabase
+          .from("checks")
+          .select("*")
+          .eq("service_id", s.id)
+          .eq("source", "external")
+          .order("checked_at", { ascending: false })
+          .limit(1);
+        return [s.id, (data?.[0] as Check | undefined) ?? null] as const;
+      }),
+    );
+    setServiceChecks(Object.fromEntries(checksByService));
   }, [id]);
 
   // Reload whenever this screen regains focus — e.g. coming back from
@@ -48,8 +77,13 @@ export default function VpsDetailScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Text style={styles.title}>{vps.label}</Text>
-        <Text style={styles.sub}>{vps.primary_domain ?? vps.name}</Text>
+        <View style={styles.headerTop}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>{vps.label}</Text>
+            <Text style={styles.sub}>{vps.primary_domain ?? vps.name}</Text>
+          </View>
+          <StatusBadge state={getHealthState(vpsCheck)} />
+        </View>
         <Text style={styles.uptimeLine}>
           24H: {formatPct(uptime?.uptime_24h)}   7D: {formatPct(uptime?.uptime_7d)}
         </Text>
@@ -77,8 +111,11 @@ export default function VpsDetailScreen() {
             asChild
           >
             <Pressable style={styles.row}>
-              <Text style={styles.rowTitle}>{item.name}</Text>
-              <Text style={styles.rowSub}>{item.domain}{item.health_check_path}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowTitle}>{item.name}</Text>
+                <Text style={styles.rowSub}>{item.domain}{item.health_check_path}</Text>
+              </View>
+              <StatusBadge state={getHealthState(serviceChecks[item.id])} />
             </Pressable>
           </Link>
         )}
@@ -91,7 +128,7 @@ export default function VpsDetailScreen() {
         scrollEnabled={false}
         ListEmptyComponent={<Text style={styles.empty}>NO INCIDENTS RECORDED.</Text>}
         renderItem={({ item }) => (
-          <View style={styles.row}>
+          <View style={styles.incidentRow}>
             <Text style={styles.rowTitle}>
               {new Date(item.started_at).toLocaleString()}
               {item.ended_at ? ` → ${new Date(item.ended_at).toLocaleString()}` : " (ONGOING)"}
@@ -109,6 +146,7 @@ export default function VpsDetailScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.colors.bg, padding: theme.spacing(2) },
   header: { borderWidth: theme.borderWidth, borderColor: theme.colors.border, padding: theme.spacing(1.5), marginBottom: theme.spacing(2) },
+  headerTop: { flexDirection: "row", alignItems: "center", gap: theme.spacing(1.5) },
   title: { fontFamily: "monospace", fontWeight: "900", fontSize: 18, color: theme.colors.fg },
   sub: { fontFamily: "monospace", fontSize: 12, color: theme.colors.fg, marginTop: 2 },
   uptimeLine: { fontFamily: "monospace", fontWeight: "700", fontSize: 12, color: theme.colors.fg, marginTop: 8 },
@@ -117,7 +155,21 @@ const styles = StyleSheet.create({
   addButton: { borderWidth: theme.borderWidth, borderColor: theme.colors.border, paddingVertical: 4, paddingHorizontal: 8 },
   addButtonText: { fontFamily: "monospace", fontWeight: "900", fontSize: 11, color: theme.colors.fg },
   empty: { fontFamily: "monospace", fontSize: 12, color: theme.colors.fg, marginBottom: theme.spacing(2) },
-  row: { borderWidth: theme.borderWidth, borderColor: theme.colors.border, padding: theme.spacing(1), marginBottom: theme.spacing(1) },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(1.5),
+    borderWidth: theme.borderWidth,
+    borderColor: theme.colors.border,
+    padding: theme.spacing(1),
+    marginBottom: theme.spacing(1),
+  },
   rowTitle: { fontFamily: "monospace", fontWeight: "700", fontSize: 13, color: theme.colors.fg },
   rowSub: { fontFamily: "monospace", fontSize: 11, color: theme.colors.fg, marginTop: 2 },
+  incidentRow: {
+    borderWidth: theme.borderWidth,
+    borderColor: theme.colors.border,
+    padding: theme.spacing(1),
+    marginBottom: theme.spacing(1),
+  },
 });

@@ -1,29 +1,65 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import type { Incident, Service, Vps } from "../lib/types";
+import { useVpsUptime } from "../lib/useVpsUptime";
+import { getHealthState } from "../lib/health";
+import { StatusBadge } from "../components/StatusBadge";
+import { UptimeHeatmap } from "../components/UptimeHeatmap";
+import type { Check, Incident, Service, Vps } from "../lib/types";
+
+function formatPct(pct: number | null | undefined) {
+  return pct == null ? "—" : `${pct}%`;
+}
 
 export default function VpsDetail() {
   const { id } = useParams<{ id: string }>();
   const [vps, setVps] = useState<Vps | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [vpsCheck, setVpsCheck] = useState<Check | null>(null);
+  const [serviceChecks, setServiceChecks] = useState<Record<string, Check | null>>({});
+  const { summary: uptime } = useVpsUptime(id);
 
   const load = useCallback(async () => {
     if (!id) return;
-    const [{ data: vpsRow }, { data: serviceRows }, { data: incidentRows }] = await Promise.all([
-      supabase.from("vps").select("*").eq("id", id).single(),
-      supabase.from("services").select("*").eq("vps_id", id).order("name"),
-      supabase
-        .from("incidents")
-        .select("*")
-        .eq("vps_id", id)
-        .order("started_at", { ascending: false })
-        .limit(20),
-    ]);
+    const [{ data: vpsRow }, { data: serviceRows }, { data: incidentRows }, { data: vpsCheckRows }] =
+      await Promise.all([
+        supabase.from("vps").select("*").eq("id", id).single(),
+        supabase.from("services").select("*").eq("vps_id", id).order("name"),
+        supabase
+          .from("incidents")
+          .select("*")
+          .eq("vps_id", id)
+          .order("started_at", { ascending: false })
+          .limit(20),
+        supabase
+          .from("checks")
+          .select("*")
+          .eq("vps_id", id)
+          .is("service_id", null)
+          .eq("source", "external")
+          .order("checked_at", { ascending: false })
+          .limit(1),
+      ]);
     setVps(vpsRow as Vps);
-    setServices((serviceRows as Service[]) ?? []);
+    const loadedServices = (serviceRows as Service[]) ?? [];
+    setServices(loadedServices);
     setIncidents((incidentRows as Incident[]) ?? []);
+    setVpsCheck((vpsCheckRows?.[0] as Check | undefined) ?? null);
+
+    const checksByService = await Promise.all(
+      loadedServices.map(async (s) => {
+        const { data } = await supabase
+          .from("checks")
+          .select("*")
+          .eq("service_id", s.id)
+          .eq("source", "external")
+          .order("checked_at", { ascending: false })
+          .limit(1);
+        return [s.id, (data?.[0] as Check | undefined) ?? null] as const;
+      }),
+    );
+    setServiceChecks(Object.fromEntries(checksByService));
   }, [id]);
 
   useEffect(() => {
@@ -35,8 +71,21 @@ export default function VpsDetail() {
   return (
     <div style={{ padding: 24 }}>
       <div style={{ border: "2px solid #000", padding: 16, marginBottom: 24 }}>
-        <div className="pixel-heading" style={{ fontSize: 16 }}>{vps.label}</div>
-        <div style={{ fontSize: 12, marginTop: 4 }}>{vps.primary_domain ?? vps.name}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ flex: 1 }}>
+            <div className="pixel-heading" style={{ fontSize: 16 }}>{vps.label}</div>
+            <div style={{ fontSize: 12, marginTop: 4 }}>{vps.primary_domain ?? vps.name}</div>
+          </div>
+          <StatusBadge state={getHealthState(vpsCheck)} />
+        </div>
+        <div style={{ fontWeight: 700, fontSize: 12, marginTop: 12 }}>
+          24H: {formatPct(uptime?.uptime_24h)} &nbsp;&nbsp; 7D: {formatPct(uptime?.uptime_7d)}
+        </div>
+      </div>
+
+      <h2 style={{ fontSize: 14, fontWeight: 900 }}>UPTIME (LAST 12 WEEKS)</h2>
+      <div style={{ marginBottom: 24 }}>
+        <UptimeHeatmap daily={uptime?.daily ?? []} />
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -54,10 +103,20 @@ export default function VpsDetail() {
           <Link
             key={s.id}
             to={`/vps/${id}/service/${s.id}`}
-            style={{ display: "block", border: "2px solid #000", padding: 12 }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              border: "2px solid #000",
+              padding: 12,
+              color: "#000",
+            }}
           >
-            <div style={{ fontWeight: 700 }}>{s.name}</div>
-            <div style={{ fontSize: 12 }}>{s.domain}{s.health_check_path}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700 }}>{s.name}</div>
+              <div style={{ fontSize: 12 }}>{s.domain}{s.health_check_path}</div>
+            </div>
+            <StatusBadge state={getHealthState(serviceChecks[s.id])} />
           </Link>
         ))}
       </div>

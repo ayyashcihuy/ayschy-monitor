@@ -37,6 +37,9 @@ export default function VpsListScreen() {
                     {item.primary_domain ?? item.name}
                   </Text>
                 </View>
+                <Text style={[styles.uptimeBadge, isDown && styles.textOnDark]}>
+                  {item.uptime24h == null ? "—" : `${item.uptime24h}%`}
+                </Text>
               </Pressable>
             </Link>
           );
@@ -83,6 +86,7 @@ const styles = StyleSheet.create({
   rowLabel: { flex: 1 },
   rowTitle: { fontFamily: "monospace", fontWeight: "700", fontSize: 15, color: theme.colors.fg },
   rowSub: { fontFamily: "monospace", fontSize: 12, color: theme.colors.fg, marginTop: 2 },
+  uptimeBadge: { fontFamily: "monospace", fontWeight: "700", fontSize: 12, color: theme.colors.fg },
   textOnDark: { color: "#FFFFFF" },
   addButton: {
     margin: theme.spacing(2),

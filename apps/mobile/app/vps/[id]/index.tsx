@@ -3,13 +3,20 @@ import { Link, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { supabase } from "../../../lib/supabase";
 import { theme } from "../../../lib/theme";
+import { useVpsUptime } from "../../../lib/useVpsUptime";
+import { UptimeHeatmap } from "../../../components/UptimeHeatmap";
 import type { Incident, Service, Vps } from "../../../lib/types";
+
+function formatPct(pct: number | null | undefined) {
+  return pct == null ? "—" : `${pct}%`;
+}
 
 export default function VpsDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [vps, setVps] = useState<Vps | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
+  const { summary: uptime } = useVpsUptime(id);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -43,9 +50,15 @@ export default function VpsDetailScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>{vps.label}</Text>
         <Text style={styles.sub}>{vps.primary_domain ?? vps.name}</Text>
+        <Text style={styles.uptimeLine}>
+          24H: {formatPct(uptime?.uptime_24h)}   7D: {formatPct(uptime?.uptime_7d)}
+        </Text>
       </View>
 
-      <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>UPTIME (LAST 12 WEEKS)</Text>
+      <UptimeHeatmap daily={uptime?.daily ?? []} />
+
+      <View style={[styles.sectionHeader, { marginTop: theme.spacing(2) }]}>
         <Text style={styles.sectionTitle}>SERVICES</Text>
         <Link href={{ pathname: "/vps/[id]/service/new", params: { id: id! } }} asChild>
           <Pressable style={styles.addButton}>
@@ -98,6 +111,7 @@ const styles = StyleSheet.create({
   header: { borderWidth: theme.borderWidth, borderColor: theme.colors.border, padding: theme.spacing(1.5), marginBottom: theme.spacing(2) },
   title: { fontFamily: "monospace", fontWeight: "900", fontSize: 18, color: theme.colors.fg },
   sub: { fontFamily: "monospace", fontSize: 12, color: theme.colors.fg, marginTop: 2 },
+  uptimeLine: { fontFamily: "monospace", fontWeight: "700", fontSize: 12, color: theme.colors.fg, marginTop: 8 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: theme.spacing(1) },
   sectionTitle: { fontFamily: "monospace", fontWeight: "900", fontSize: 13, marginBottom: theme.spacing(1), color: theme.colors.fg },
   addButton: { borderWidth: theme.borderWidth, borderColor: theme.colors.border, paddingVertical: 4, paddingHorizontal: 8 },

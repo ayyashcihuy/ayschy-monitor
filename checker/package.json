@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "External checker for jamuin-monitor. Runs on GitHub Actions (never on any monitored VPS) — curls each registered VPS/service over the public internet, writes results to Supabase, and pushes an Expo notification on any up↔down transition.",
+  "description": "External checker for jamuin-monitor — Node/GitHub Actions version. The scheduled cron now runs as the Supabase Edge Function in supabase/functions/checker instead (see its header comment); this copy is kept for local testing and as a manual GitHub Actions fallback (.github/workflows/check.yml). Curls each registered VPS/service over the public internet (never any monitored VPS itself), writes results to Supabase, and pushes an Expo notification on any up↔down transition. Keep in sync with supabase/functions/checker/index.ts if the check logic changes.",
   "scripts": {
     "check": "tsx src/check.ts",
     "typecheck": "tsc --noEmit"

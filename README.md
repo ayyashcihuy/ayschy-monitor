@@ -14,20 +14,27 @@ dark, the monitor still has to report that. So:
 
 - **Data plane**: Supabase (Postgres) — independent third party, holds the
   registry, all time-series data, and incident log. Single source of truth.
-- **Check plane**: [checker/](checker/) runs on GitHub Actions (cron, every
-  ~5 min), *not* on any monitored VPS. It curls each registered domain over
-  the public internet, writes results to Supabase, and sends an Expo push +
-  opens/closes an incident row on every up↔down transition.
+- **Check plane**: [supabase/functions/checker](supabase/functions/checker)
+  (a Supabase Edge Function), invoked every ~5 min by a Database → Cron Job
+  — runs on Supabase's infra, *not* on any monitored VPS. It curls each
+  registered domain over the public internet, writes results to Supabase,
+  and sends an Expo push + opens/closes an incident row on every up↔down
+  transition. [checker/](checker/) is the same logic as a plain Node
+  script — kept for local testing and as a manual GitHub Actions fallback
+  (originally the primary cron, moved off Actions after a billing lock;
+  see the file headers in both for details). Keep the two in sync if the
+  check logic changes.
 - **Apps**: [apps/mobile](apps/mobile/) (Expo/React Native) and
   [apps/web](apps/web/) (Vite/React) both read Supabase directly (+ realtime
   subscription) and never poll a VPS themselves.
 
 ```
-apps/mobile/   Expo app — VPS list → VPS detail → add VPS/service
-apps/web/      Vite web dashboard, same UI, capped at 1280px viewport
-checker/       GitHub Actions external checker (writes to Supabase)
-supabase/      SQL migrations (schema)
-docs/          Design/incident background notes this project is based on
+apps/mobile/               Expo app — VPS list → VPS detail → add VPS/service
+apps/web/                  Vite web dashboard, same UI, capped at 1280px viewport
+supabase/functions/checker/  Edge Function — the actual scheduled checker (Supabase Cron)
+supabase/migrations/       SQL schema
+checker/                   Node/GitHub Actions version of the checker — local testing + manual fallback
+docs/                      Design/incident background notes this project is based on
 ```
 
 Both apps share the same visual style: pixelated, full black/white
@@ -46,8 +53,10 @@ pixel-font headings.
 4. **Settings → API**: copy the **Project URL** and the **anon public**
    key → these go in `apps/mobile/.env` and `apps/web/.env` (see step 3).
 5. Same page, reveal the **service_role** key (server-only, bypasses RLS —
-   never put this in a mobile/web app) → this goes in the GitHub Actions
-   secret for [checker/](checker/) (see step 4).
+   never put this in a mobile/web app or commit it anywhere). Supabase
+   injects this automatically into every Edge Function's environment, so
+   you won't need to paste it manually for step 2 — just keep it handy for
+   `checker/.env` if you want to run the Node version locally.
 6. **SQL Editor** → run every file in
    [supabase/migrations/](supabase/migrations/) **in filename order**
    (`0001_init.sql`, then `0002_...`, etc. — paste each one's contents and
@@ -59,19 +68,32 @@ pixel-font headings.
    run just that one file — Supabase has no CLI configured on this
    project yet, so nothing applies automatically.
 
-### 2. Create the GitHub repo (for the Actions cron)
+### 2. Deploy the checker (Supabase Edge Function + Cron)
 
-Push this folder to a new GitHub repo, then in **Settings → Secrets and
-variables → Actions**, add:
+```bash
+npx supabase login                            # opens a browser to authenticate the CLI
+npx supabase link --project-ref <your-ref>    # ref is in the project URL / Settings → General
+npx supabase functions deploy checker         # deploys supabase/functions/checker
+```
 
-- `SUPABASE_URL` — the Project URL from step 1.4
-- `SUPABASE_SERVICE_KEY` — the service_role key from step 1.5
-- `EXPO_ACCESS_TOKEN` — optional for now (needed once you use Expo's push
-  API from a project that requires an access token; can add later)
+Optional — only needed once you actually want push notifications working:
 
-The workflow at [.github/workflows/check.yml](.github/workflows/check.yml)
-runs every 5 minutes automatically once these secrets exist and there's at
-least one row in the `vps`/`services` tables.
+```bash
+npx supabase secrets set EXPO_ACCESS_TOKEN=<token>
+```
+
+Then schedule it: **Supabase Dashboard → Database → Cron Jobs → Create a
+new cron job** →
+- Name: `jamuin-monitor-checker`
+- Schedule: `*/5 * * * *`
+- Type: **Edge Function**
+- Function: `checker`, method `POST` — the dashboard fills in the URL and
+  a `service_role` Authorization header for you automatically.
+
+That's it — no GitHub repo/secrets needed for the cron itself. (A GitHub
+Actions copy still exists at [.github/workflows/check.yml](.github/workflows/check.yml)
+for manual/local-parity testing — see its header comment for why it's not
+the primary schedule.)
 
 ### 3. Configure the apps
 
@@ -92,9 +114,12 @@ npm run mobile               # → Expo dev server (scan QR with Expo Go)
 ```
 
 Add your first VPS from either app's **+ ADD VPS** button — fill in its
-`primary_domain` so the checker has something to curl. Once the GitHub
-Actions secrets are set and a VPS exists, the checker starts recording
-`checks` every 5 minutes and both apps update live via Supabase realtime.
+`primary_domain` so the checker has something to curl. Once the Edge
+Function is deployed + scheduled (step 2) and a VPS exists, the checker
+starts recording `checks` every 5 minutes and both apps update live via
+Supabase realtime. To verify it's actually running: **Dashboard →
+Edge Functions → checker → Logs** (or **Database → Cron Jobs → Run
+history**), or just check the `checks` table for new rows.
 
 ### 5. Push notifications (optional, can skip for now)
 
@@ -105,9 +130,10 @@ working end-to-end.
 
 ## Status
 
-Base scaffold — schema, checker, and both apps' VPS list/detail/add-VPS
-flow are wired to Supabase. Not yet built: service-level add/edit UI,
-metric toggles, traffic/resource charts, uptime-% heatmap, local
-resource-usage agent (`source='internal_agent'`). See
+Schema, checker (now Supabase Edge Function + Cron), and both apps' VPS
+list/detail/add-VPS + add/edit/delete-service + metric-toggle flows are
+wired to Supabase. Not yet built: traffic/resource charts, uptime-%
+heatmap, incident-based downtime analytics, local resource-usage agent
+(`source='internal_agent'`), basic auth. See
 [docs/vps-monitor-app-plan.md](docs/vps-monitor-app-plan.md) "Scope v1" for
 the full target list.
